@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState, useMemo, useEffect } from 'react';
 
 // --- CONFIGURAÇÃO DE CORES MONDRIAN ---
@@ -13,6 +11,13 @@ const COLORS = {
 };
 
 const CHART_COLORS = [COLORS.crimson, COLORS.mustard, COLORS.teal, '#333333'];
+
+// ==========================================
+// CONFIGURAÇÕES DE LIGAÇÃO (SIMPLIFICADO)
+// ==========================================
+// Ele vai tentar ler do Vercel primeiro. Se não encontrar, usa o texto entre aspas.
+const GAS_URL = (import.meta && import.meta.env && import.meta.env.VITE_GAS_URL) || 'COLE_SEU_LINK_DO_GOOGLE_AQUI_SE_QUISER';
+const APP_PASSWORD = (import.meta && import.meta.env && import.meta.env.VITE_TABULUM_PASSWORD) || 'marquito2026';
 
 // ==========================================
 // ÍCONES NATIVOS (Sem dependências externas)
@@ -54,29 +59,42 @@ export default function App() {
   const [leads, setLeads] = useState([]);
   const [activeTab, setActiveTab] = useState('main'); // 'main' ou 'dashboard'
   
-  // Login Handler
+  // Login Handler DIRETO (Igual ao MoniLegis)
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setAuthError('');
     
-    try {
-      const response = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
-      });
+    // 1. Checa a senha localmente
+    if (password !== APP_PASSWORD) {
+      setAuthError('Senha incorreta. Acesso negado.');
+      setLoading(false);
+      return;
+    }
 
-      if (response.ok) {
-        const data = await response.json();
+    // 2. Faz o Fetch direto no Google Apps Script
+    try {
+      if (!GAS_URL || GAS_URL === 'COLE_SEU_LINK_DO_GOOGLE_AQUI_SE_QUISER') {
+        throw new Error("URL do Google Script não configurada.");
+      }
+
+      const response = await fetch(GAS_URL);
+      if (!response.ok) {
+        throw new Error("Erro na resposta do servidor");
+      }
+      
+      const data = await response.json();
+      
+      // Se a planilha retornar um erro em JSON
+      if (data.error) {
+        setAuthError(data.error);
+      } else {
         setLeads(data.reverse()); // Inverte para mostrar as linhas mais novas primeiro
         setIsAuthenticated(true);
-      } else {
-        const errorData = await response.json();
-        setAuthError(errorData.message || 'Senha incorreta. Acesso negado.');
       }
     } catch (error) {
-      setAuthError('Falha ao conectar com o servidor da API.');
+      console.error(error);
+      setAuthError('Falha ao conectar. Verifique o link do GAS_URL e sua conexão.');
     } finally {
       setLoading(false);
     }
@@ -125,7 +143,7 @@ export default function App() {
                 disabled={loading}
                 className="w-full bg-black text-white font-bold py-4 px-6 border-4 border-black hover:bg-yellow-400 hover:text-black transition-colors flex items-center justify-center gap-2 uppercase tracking-wider disabled:opacity-50"
               >
-                {loading ? 'Verificando...' : 'Desbloquear Sistema'}
+                {loading ? 'Conectando...' : 'Desbloquear Sistema'}
               </button>
             </form>
           </div>
