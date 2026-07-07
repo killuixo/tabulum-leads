@@ -1,12 +1,6 @@
+"use client";
+
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Search, Users, Map as MapIcon, BarChart3, Database, 
-  LayoutGrid, List, ChevronLeft, ChevronRight, Lock, AlertCircle, RefreshCw
-} from 'lucide-react';
-import { 
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, ScatterChart, Scatter, ZAxis 
-} from 'recharts';
 
 // --- CONFIGURAÇÃO DE CORES MONDRIAN ---
 const COLORS = {
@@ -18,41 +12,38 @@ const COLORS = {
   gray: '#f3f4f6'
 };
 
-// --- DADOS SIMULADOS (Para visualização no Canvas) ---
-// Em produção, isso virá da sua API no Vercel.
-const generateMockData = () => {
-  const cidades = ['Florianópolis', 'São José', 'Palhoça', 'Biguaçu', 'Garopaba'];
-  const bairros = ['Agronômica', 'Centro', 'Trindade', 'Campeche', 'Ingleses', 'Armação'];
-  const origens = ['CARTA - PANDEMIA', 'Leads Marquito para EVAG', 'Seminários Turismo', 'Formulário Site'];
-  const data = [];
-  
-  for (let i = 1; i <= 250; i++) {
-    const isRepetido = Math.random() > 0.85;
-    data.push({
-      id: i,
-      status: isRepetido ? 'repetido' : 'ok',
-      nome: `Contato Simulado ${i}`,
-      cidade: cidades[Math.floor(Math.random() * cidades.length)],
-      bairroRevisado: bairros[Math.floor(Math.random() * bairros.length)],
-      bairroReplan: bairros[Math.floor(Math.random() * bairros.length)],
-      uf: 'SC',
-      email: `contato${i}@exemplo.com`,
-      whatsapp: `4899${Math.floor(1000000 + Math.random() * 9000000)}`,
-      origem: origens[Math.floor(Math.random() * origens.length)],
-      observacoes: isRepetido ? 'Entrada duplicada no evento' : 'Lead qualificado'
-    });
-  }
-  
-  // Adicionando os casos reais do CSV fornecido
-  data.push({ id: 9001, status: '', nome: 'Zenir Gelsleichter', cidade: 'Florianópolis', bairroRevisado: 'Agronômica', bairroReplan: 'Agronômica', uf: 'SC', email: 'zenirg@gmail.com', whatsapp: '', origem: 'CARTA - PANDEMIA', observacoes: '' });
-  data.push({ id: 9002, status: 'lead evag', nome: 'Zenon Brignol Walotek', cidade: 'Garopaba', bairroRevisado: '', bairroReplan: '', uf: 'SC', email: 'zenonwalotek@gmail.com', whatsapp: '48991743407', origem: 'ASSINE | SC Cotas', observacoes: '' });
-  data.push({ id: 9003, status: 'google contatos', nome: 'Zenon Brzeski Boeing', cidade: 'Florianópolis', bairroRevisado: '', bairroReplan: '', uf: 'SC', email: 'zeboeing@yahoo.com.br', whatsapp: '48988546586', origem: 'Seminários de Regionalização', observacoes: '' });
-  data.push({ id: 9004, status: 'repetido', nome: 'Zenon Brzeski Boeing', cidade: 'Florianópolis', bairroRevisado: '', bairroReplan: '', uf: 'SC', email: 'zeboeing@yahoo.com.br', whatsapp: '48988546586', origem: 'Seminários de Regionalização', observacoes: '' });
-  
-  return data.reverse();
-};
-
 const CHART_COLORS = [COLORS.crimson, COLORS.mustard, COLORS.teal, '#333333'];
+
+// ==========================================
+// ÍCONES NATIVOS (Sem dependências externas)
+// ==========================================
+const SearchIcon = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+);
+const UsersIcon = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+);
+const MapIcon = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"></polygon><line x1="9" y1="3" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="21"></line></svg>
+);
+const ChartIcon = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path></svg>
+);
+const DatabaseIcon = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+);
+const GridIcon = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+);
+const ListIcon = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+);
+const LockIcon = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+);
+const AlertIcon = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="square" strokeLinejoin="miter" className={className}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+);
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -64,25 +55,31 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('main'); // 'main' ou 'dashboard'
   
   // Login Handler
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setAuthError('');
     
-    // SIMULAÇÃO DE CHAMADA DE API SEGURA
-    // Em produção: 
-    // const response = await fetch('/api/get-leads', { method: 'POST', body: JSON.stringify({ password }) });
-    // if(response.ok) { setLeads(await response.json()); setIsAuthenticated(true); }
-    
-    setTimeout(() => {
-      if (password === 'marquito2026') {
-        setLeads(generateMockData());
+    try {
+      const response = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setLeads(data.reverse()); // Inverte para mostrar as linhas mais novas primeiro
         setIsAuthenticated(true);
       } else {
-        setAuthError('Senha incorreta. Acesso negado ao ecossistema.');
+        const errorData = await response.json();
+        setAuthError(errorData.message || 'Senha incorreta. Acesso negado.');
       }
+    } catch (error) {
+      setAuthError('Falha ao conectar com o servidor da API.');
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
   if (!isAuthenticated) {
@@ -95,7 +92,7 @@ export default function App() {
           
           <div className="pl-6 text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-yellow-400 border-4 border-black mb-6">
-              <Lock className="w-8 h-8 text-black" />
+              <LockIcon className="w-8 h-8 text-black" />
             </div>
             <h1 className="text-3xl font-black text-black mb-2 tracking-tight">TABULUM</h1>
             <h2 className="text-xl font-bold text-gray-600 mb-6 uppercase tracking-widest">Leads</h2>
@@ -118,7 +115,7 @@ export default function App() {
               
               {authError && (
                 <div className="flex items-center justify-center gap-2 text-red-700 font-bold text-sm bg-red-100 p-2 border-2 border-red-700">
-                  <AlertCircle className="w-4 h-4" />
+                  <AlertIcon className="w-4 h-4" />
                   {authError}
                 </div>
               )}
@@ -128,10 +125,9 @@ export default function App() {
                 disabled={loading}
                 className="w-full bg-black text-white font-bold py-4 px-6 border-4 border-black hover:bg-yellow-400 hover:text-black transition-colors flex items-center justify-center gap-2 uppercase tracking-wider disabled:opacity-50"
               >
-                {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : 'Desbloquear Sistema'}
+                {loading ? 'Verificando...' : 'Desbloquear Sistema'}
               </button>
             </form>
-            <p className="mt-6 text-xs text-gray-400 font-bold">Dica no Canvas: a senha é marquito2026</p>
           </div>
         </div>
       </div>
@@ -140,12 +136,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-white font-sans text-black selection:bg-yellow-400">
-      {/* Header Mondrian */}
       <header className="border-b-4 border-black bg-white sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between">
           <div className="flex items-center w-full sm:w-auto">
             <div className="bg-red-700 w-16 h-16 border-r-4 border-black flex items-center justify-center shrink-0">
-              <Database className="w-8 h-8 text-white" />
+              <DatabaseIcon className="w-8 h-8 text-white" />
             </div>
             <div className="px-4 py-2">
               <h1 className="text-2xl font-black tracking-tighter leading-none">TABULUM</h1>
@@ -160,7 +155,7 @@ export default function App() {
                 activeTab === 'main' ? 'bg-yellow-400' : 'hover:bg-gray-100'
               }`}
             >
-              <Users className="w-5 h-5" />
+              <UsersIcon className="w-5 h-5" />
               <span className="hidden sm:inline">Base de Leads</span>
             </button>
             <button
@@ -169,7 +164,7 @@ export default function App() {
                 activeTab === 'dashboard' ? 'bg-yellow-400' : 'hover:bg-gray-100'
               }`}
             >
-              <BarChart3 className="w-5 h-5" />
+              <ChartIcon className="w-5 h-5" />
               <span className="hidden sm:inline">Dashboard</span>
             </button>
           </div>
@@ -184,15 +179,14 @@ export default function App() {
 }
 
 // ==========================================
-// ABA 1: VISUALIZAÇÃO PRINCIPAL (TABELA/CARDS)
+// ABA 1: VISUALIZAÇÃO PRINCIPAL
 // ==========================================
 function LeadsView({ leads }) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' ou 'list'
+  const [viewMode, setViewMode] = useState('grid');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 24;
 
-  // Processamento de Dados: Filtro e Busca Universal
   const filteredLeads = useMemo(() => {
     return leads.filter((lead) => {
       const searchStr = searchTerm.toLowerCase();
@@ -208,26 +202,19 @@ function LeadsView({ leads }) {
     });
   }, [leads, searchTerm]);
 
-  // Paginação
   const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
-  const currentItems = filteredLeads.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const currentItems = filteredLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  useEffect(() => {
-    setCurrentPage(1); // Reset page on search
-  }, [searchTerm]);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Barra de Ferramentas */}
       <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white border-4 border-black p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
         <div className="relative w-full md:w-1/2">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
           <input
             type="text"
-            placeholder="Busca universal (Nome, Cidade, Bairro, Email, etc)..."
+            placeholder="Busca universal..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-3 border-2 border-black focus:outline-none focus:ring-4 focus:ring-yellow-400 font-bold"
@@ -239,29 +226,20 @@ function LeadsView({ leads }) {
             {filteredLeads.length} Registros
           </div>
           <div className="flex border-2 border-black">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 ${viewMode === 'grid' ? 'bg-yellow-400' : 'bg-white hover:bg-gray-100'}`}
-            >
-              <LayoutGrid className="w-5 h-5" />
+            <button onClick={() => setViewMode('grid')} className={`p-2 ${viewMode === 'grid' ? 'bg-yellow-400' : 'bg-white hover:bg-gray-100'}`}>
+              <GridIcon className="w-5 h-5" />
             </button>
             <div className="w-0.5 bg-black"></div>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 ${viewMode === 'list' ? 'bg-yellow-400' : 'bg-white hover:bg-gray-100'}`}
-            >
-              <List className="w-5 h-5" />
+            <button onClick={() => setViewMode('list')} className={`p-2 ${viewMode === 'list' ? 'bg-yellow-400' : 'bg-white hover:bg-gray-100'}`}>
+              <ListIcon className="w-5 h-5" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Conteúdo (Grid ou Lista) */}
       {viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {currentItems.map((lead, idx) => (
-            <LeadCard key={lead.id || idx} lead={lead} />
-          ))}
+          {currentItems.map((lead, idx) => <LeadCard key={lead.id || idx} lead={lead} />)}
         </div>
       ) : (
         <div className="bg-white border-4 border-black overflow-x-auto shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
@@ -302,15 +280,14 @@ function LeadsView({ leads }) {
         </div>
       )}
 
-      {/* Paginação */}
       {totalPages > 1 && (
         <div className="flex justify-center items-center gap-4 py-4">
           <button
             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-            className="p-2 border-4 border-black bg-white hover:bg-yellow-400 disabled:opacity-50 disabled:hover:bg-white transition-colors"
+            className="p-2 border-4 border-black bg-white font-bold hover:bg-yellow-400 disabled:opacity-50 transition-colors"
           >
-            <ChevronLeft className="w-6 h-6" />
+            &laquo; Ant
           </button>
           <span className="font-black text-lg bg-white border-4 border-black px-4 py-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
             {currentPage} / {totalPages}
@@ -318,9 +295,9 @@ function LeadsView({ leads }) {
           <button
             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
-            className="p-2 border-4 border-black bg-white hover:bg-yellow-400 disabled:opacity-50 disabled:hover:bg-white transition-colors"
+            className="p-2 border-4 border-black bg-white font-bold hover:bg-yellow-400 disabled:opacity-50 transition-colors"
           >
-            <ChevronRight className="w-6 h-6" />
+            Próx &raquo;
           </button>
         </div>
       )}
@@ -328,27 +305,21 @@ function LeadsView({ leads }) {
   );
 }
 
-// Componente Card de Lead
 function LeadCard({ lead }) {
   const isRepetido = lead.status?.toLowerCase() === 'repetido';
-  
   return (
     <div className={`bg-white border-4 border-black p-4 relative flex flex-col h-full shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-transform hover:-translate-y-1 ${isRepetido ? 'opacity-80' : ''}`}>
-      {/* Detalhe Visual Mondrian */}
       <div className={`absolute top-0 right-0 w-8 h-8 border-b-4 border-l-4 border-black ${isRepetido ? 'bg-red-700' : 'bg-teal-700'}`}></div>
-      
       <div className="mb-2 pr-8">
         {isRepetido && <span className="inline-block bg-red-700 text-white text-[10px] font-black px-2 py-0.5 uppercase border-2 border-black mb-1">Repetido</span>}
         <h3 className="font-black text-lg leading-tight line-clamp-2">{lead.nome || 'Sem Nome'}</h3>
       </div>
-      
       <div className="flex-grow space-y-3 mt-2 text-sm font-medium">
         <div className="bg-gray-50 p-2 border-2 border-black">
           <div className="text-xs text-gray-500 font-bold uppercase mb-0.5">Localização</div>
           <div>{lead.cidade || '-'}</div>
           <div className="text-gray-600">{lead.bairroRevisado || lead.bairroReplan || '-'}, {lead.uf}</div>
         </div>
-        
         <div className="space-y-1">
           <div className="flex items-center gap-2 truncate">
             <div className="w-2 h-2 bg-mustard rounded-full shrink-0"></div>
@@ -360,7 +331,6 @@ function LeadCard({ lead }) {
           </div>
         </div>
       </div>
-      
       <div className="mt-4 pt-3 border-t-4 border-black">
         <div className="text-[10px] text-gray-500 font-bold uppercase mb-1">Origem</div>
         <div className="text-xs font-bold line-clamp-1">{lead.origem || '-'}</div>
@@ -370,55 +340,42 @@ function LeadCard({ lead }) {
 }
 
 // ==========================================
-// ABA 2: DASHBOARD (MÉTRICAS E MAPAS)
+// ABA 2: DASHBOARD (Nativo Tailwind)
 // ==========================================
 function DashboardView({ leads }) {
-  const [mapView, setMapView] = useState('SC'); // 'SC' ou 'FLN'
+  const [mapView, setMapView] = useState('SC');
 
-  // Cálculos de Lógica (Desconsiderando repetidos para os gráficos gerais, mantendo apenas contagem)
   const stats = useMemo(() => {
     const total = leads.length;
     const uniqueLeads = leads.filter(l => l.status?.toLowerCase() !== 'repetido');
     const repetidos = total - uniqueLeads.length;
     
-    // Contagem Cidades (Somente únicos)
     const cidadesCount = {};
     const bairrosFlnCount = {};
     const origemCount = {};
 
     uniqueLeads.forEach(l => {
-      // Cidades
       const cid = l.cidade || 'Não Informado';
       cidadesCount[cid] = (cidadesCount[cid] || 0) + 1;
       
-      // Bairros Floripa
       if (cid.toLowerCase().includes('florian') || cid.toLowerCase().includes('floripa')) {
         const bairro = l.bairroRevisado || l.bairroReplan || 'Não Informado';
         bairrosFlnCount[bairro] = (bairrosFlnCount[bairro] || 0) + 1;
       }
 
-      // Origem
       const orig = l.origem || 'Outros';
       origemCount[orig] = (origemCount[orig] || 0) + 1;
     });
 
-    const topCidades = Object.entries(cidadesCount)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-
-    const topBairrosFln = Object.entries(bairrosFlnCount)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
-
-    const topOrigens = Object.entries(origemCount)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 4);
+    const topCidades = Object.entries(cidadesCount).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
+    const topBairrosFln = Object.entries(bairrosFlnCount).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
+    const topOrigens = Object.entries(origemCount).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
 
     return { total, unique: uniqueLeads.length, repetidos, topCidades, topBairrosFln, topOrigens };
   }, [leads]);
+
+  const maxCidadeValue = stats.topCidades.length > 0 ? stats.topCidades[0].value : 1;
+  const totalTopOrigens = stats.topOrigens.reduce((acc, curr) => acc + curr.value, 0) || 1;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -426,57 +383,64 @@ function DashboardView({ leads }) {
       {/* Cards de Resumo */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard title="Total de Entradas" value={stats.total} color="bg-black" textColor="text-white" />
-        <StatCard title="Leads Únicos (Válidos)" value={stats.unique} color="bg-teal-700" textColor="text-white" />
+        <StatCard title="Leads Únicos" value={stats.unique} color="bg-teal-700" textColor="text-white" />
         <StatCard title="Entradas Repetidas" value={stats.repetidos} color="bg-red-700" textColor="text-white" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Gráfico: Top Cidades */}
+        {/* Gráfico Nativo: Top Cidades */}
         <div className="bg-white border-4 border-black p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
           <h3 className="text-xl font-black uppercase mb-6 border-b-4 border-black pb-2 inline-block">Top Cidades</h3>
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.topCidades} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#000', fontWeight: 'bold' }} width={120} />
-                <Tooltip cursor={{ fill: '#f3f4f6' }} contentStyle={{ border: '4px solid black', borderRadius: 0, fontWeight: 'bold' }} />
-                <Bar dataKey="value" fill={COLORS.mustard} radius={[0, 4, 4, 0]} barSize={32}>
-                  {stats.topCidades.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index === 0 ? COLORS.crimson : COLORS.mustard} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Gráfico: Origens */}
-        <div className="bg-white border-4 border-black p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col">
-          <h3 className="text-xl font-black uppercase mb-6 border-b-4 border-black pb-2 self-start">Origem dos Leads</h3>
-          <div className="h-[300px] flex-grow">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={stats.topOrigens} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={2} dataKey="value" stroke="#000" strokeWidth={2}>
-                  {stats.topOrigens.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ border: '4px solid black', borderRadius: 0, fontWeight: 'bold' }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex flex-wrap gap-2 justify-center mt-4">
-            {stats.topOrigens.map((entry, index) => (
-              <div key={entry.name} className="flex items-center gap-1 text-xs font-bold border-2 border-black px-2 py-1">
-                <div className="w-3 h-3 border border-black" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}></div>
-                {entry.name}
+          <div className="space-y-4">
+            {stats.topCidades.map((cidade, index) => (
+              <div key={cidade.name} className="flex items-center gap-3">
+                <div className="w-24 md:w-32 font-bold truncate text-sm" title={cidade.name}>{cidade.name}</div>
+                <div className="flex-1 bg-gray-100 h-8 relative border-2 border-black flex items-center">
+                  <div 
+                    className={`h-full border-r-2 border-black ${index === 0 ? 'bg-red-700' : 'bg-yellow-400'}`} 
+                    style={{ width: `${(cidade.value / maxCidadeValue) * 100}%` }}
+                  ></div>
+                </div>
+                <div className="w-12 text-right font-black">{cidade.value}</div>
               </div>
             ))}
           </div>
         </div>
+
+        {/* Gráfico Nativo: Origens */}
+        <div className="bg-white border-4 border-black p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+          <h3 className="text-xl font-black uppercase mb-6 border-b-4 border-black pb-2 inline-block">Origem dos Leads</h3>
+          <div className="space-y-4">
+            {/* Barra de Progresso Empilhada Mondrian */}
+            <div className="w-full h-12 flex border-4 border-black mb-6">
+              {stats.topOrigens.map((origem, index) => {
+                const percentage = (origem.value / totalTopOrigens) * 100;
+                return (
+                  <div 
+                    key={origem.name} 
+                    style={{ width: `${percentage}%`, backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
+                    className="h-full border-r-2 border-black last:border-r-0"
+                    title={`${origem.name}: ${origem.value}`}
+                  ></div>
+                );
+              })}
+            </div>
+            
+            {/* Legendas */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {stats.topOrigens.map((origem, index) => (
+                <div key={origem.name} className="flex items-center gap-2 border-2 border-black p-2 bg-gray-50">
+                  <div className="w-4 h-4 border-2 border-black shrink-0" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}></div>
+                  <div className="flex-1 truncate text-xs font-bold" title={origem.name}>{origem.name}</div>
+                  <div className="font-black text-sm">{origem.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Seção de Mapa / Mapa de Calor Estilizado */}
+      {/* Mapa de Calor Mondrian Native */}
       <div className="bg-white border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
         <div className="flex flex-col sm:flex-row border-b-4 border-black">
           <div className="p-4 sm:p-6 bg-yellow-400 border-b-4 sm:border-b-0 sm:border-r-4 border-black flex items-center justify-center gap-3 w-full sm:w-1/3 shrink-0">
@@ -499,48 +463,42 @@ function DashboardView({ leads }) {
           </div>
         </div>
 
-        <div className="p-6">
-          <p className="text-sm font-bold text-gray-500 mb-6 uppercase tracking-wider">
+        <div className="p-6 bg-gray-50">
+          <p className="text-sm font-bold text-gray-500 mb-6 uppercase tracking-wider text-center">
             {mapView === 'SC' ? 'Concentração por Município' : 'Concentração por Bairros (Ilha/Continente)'}
           </p>
           
-          {/* Visualização alternativa de Heatmap (Mondrian Style) usando Scatter/Treemap concept */}
-          <div className="h-[400px] w-full bg-gray-50 border-4 border-black relative overflow-hidden flex items-center justify-center p-4">
-            {/* Elementos Decorativos Mondrian de Fundo */}
-            <div className="absolute top-10 left-10 w-full h-1 bg-gray-200"></div>
-            <div className="absolute top-0 left-1/3 w-1 h-full bg-gray-200"></div>
-            <div className="absolute top-1/2 left-0 w-full h-1 bg-gray-200"></div>
-            <div className="absolute top-0 left-2/3 w-1 h-full bg-gray-200"></div>
+          <div className="flex flex-wrap gap-4 justify-center">
+            {(mapView === 'SC' ? stats.topCidades : stats.topBairrosFln).map((item, index) => {
+              // Estilização Mondrian baseada na posição do ranking
+              let bg = 'bg-white';
+              let text = 'text-black';
+              if(index === 0) { bg = 'bg-red-700'; text = 'text-white'; }
+              else if(index === 1) { bg = 'bg-yellow-400'; text = 'text-black'; }
+              else if(index === 2) { bg = 'bg-teal-700'; text = 'text-white'; }
+              else if(index === 3) { bg = 'bg-black'; text = 'text-white'; }
 
-            <ResponsiveContainer width="100%" height="100%">
-              <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                <XAxis type="number" dataKey="x" name="Posição X" hide />
-                <YAxis type="number" dataKey="y" name="Posição Y" hide />
-                <ZAxis type="number" dataKey="value" range={[500, 8000]} name="Leads" />
-                <Tooltip cursor={{strokeDasharray: '3 3'}} content={<CustomHeatmapTooltip />} />
-                
-                <Scatter data={generateHeatmapNodes(mapView === 'SC' ? stats.topCidades : stats.topBairrosFln)} fill={COLORS.teal}>
-                  {
-                    generateHeatmapNodes(mapView === 'SC' ? stats.topCidades : stats.topBairrosFln).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={
-                        index === 0 ? COLORS.crimson : 
-                        index === 1 ? COLORS.mustard : 
-                        index === 2 ? COLORS.teal : COLORS.black
-                      } />
-                    ))
-                  }
-                </Scatter>
-              </ScatterChart>
-            </ResponsiveContainer>
+              // Tamanho dinâmico do bloco
+              const sizeClass = index === 0 ? 'w-full md:w-2/3 h-40 md:h-48 text-2xl' : 
+                                index < 3 ? 'w-[45%] md:w-[30%] h-32 md:h-40 text-xl' : 
+                                'w-[30%] md:w-[20%] h-24 md:h-28 text-lg';
+
+              return (
+                <div key={item.name} className={`${bg} ${text} ${sizeClass} border-4 border-black p-4 flex flex-col items-center justify-center text-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform`}>
+                  <span className="font-black uppercase leading-tight line-clamp-2">{item.name}</span>
+                  <span className={`mt-2 font-bold px-2 py-1 text-sm border-2 border-current ${bg === 'bg-white' ? 'bg-gray-100' : 'bg-black/20'}`}>
+                    {item.value} leads
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
-
     </div>
   );
 }
 
-// Sub-componentes do Dashboard
 function StatCard({ title, value, color, textColor }) {
   return (
     <div className={`${color} ${textColor} border-4 border-black p-6 relative shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 transition-transform`}>
@@ -550,33 +508,3 @@ function StatCard({ title, value, color, textColor }) {
     </div>
   );
 }
-
-// Função utilitária para espalhar as bolhas no gráfico de dispersão simulando um mapa de calor estilizado
-function generateHeatmapNodes(dataList) {
-  // Posicionamento estilizado
-  const positions = [
-    { x: 50, y: 50 }, { x: 30, y: 70 }, { x: 70, y: 30 }, 
-    { x: 20, y: 30 }, { x: 80, y: 70 }, { x: 50, y: 80 }, 
-    { x: 80, y: 20 }, { x: 20, y: 80 }, { x: 60, y: 60 }, { x: 40, y: 40 }
-  ];
-  
-  return dataList.map((item, index) => ({
-    name: item.name,
-    value: item.value,
-    x: positions[index % positions.length].x + (Math.random() * 10 - 5), // Pequena variação
-    y: positions[index % positions.length].y + (Math.random() * 10 - 5),
-  }));
-}
-
-const CustomHeatmapTooltip = ({ active, payload }) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    return (
-      <div className="bg-white border-4 border-black p-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-        <p className="font-black text-lg uppercase border-b-2 border-black pb-1 mb-1">{data.name}</p>
-        <p className="font-bold text-teal-700">{data.value} leads concentrados</p>
-      </div>
-    );
-  }
-  return null;
-};
