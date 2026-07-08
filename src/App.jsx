@@ -173,7 +173,7 @@ export default function App() {
           <div className="pl-6 text-center">
             
             {/* ÍCONE NA TELA DE LOGIN AQUI */}
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-yellow-400 border-4 border-black mb-6 overflow-hidden p-2">
+            <div className="inline-flex items-center justify-center w-24 h-24 mb-6">
               <img src={ICON_URL} alt="Ícone TABULUM" className="w-full h-full object-contain" />
             </div>
             
@@ -206,8 +206,8 @@ export default function App() {
           <div className="flex items-center w-full sm:w-auto">
             
             {/* ÍCONE NO CABEÇALHO AQUI */}
-            <div className="bg-red-700 w-16 h-16 border-r-4 border-black flex items-center justify-center shrink-0 p-2">
-               <img src={ICON_URL} alt="Ícone TABULUM" className="w-full h-full object-contain filter invert opacity-90" />
+            <div className="w-16 h-16 flex items-center justify-center shrink-0 p-2 sm:ml-2">
+               <img src={ICON_URL} alt="Ícone TABULUM" className="w-full h-full object-contain" />
             </div>
             
             <div className="px-4 py-2">
