@@ -50,20 +50,44 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0); // Em bytes
   
   const [leads, setLeads] = useState([]);
   const [activeTab, setActiveTab] = useState('main'); 
 
-  // --- ESTADO GLOBAL DOS FILTROS ---
+  // --- ESTADO GLOBAL DOS FILTROS E AGRUPAMENTOS ---
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({ cidade: [], bairro: [], origem: [] });
   const [viewMode, setViewMode] = useState('grid');
+  const [groupBy, setGroupBy] = useState('nome'); // 'nome', 'email', 'whatsapp'
+
+  // ALTERAR NOME DO APP NO CELULAR PARA "Leads"
+  useEffect(() => {
+    document.title = "Leads";
+    
+    let metaApple = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (!metaApple) {
+      metaApple = document.createElement('meta');
+      metaApple.name = "apple-mobile-web-app-title";
+      document.head.appendChild(metaApple);
+    }
+    metaApple.content = "Leads";
+    
+    let metaApp = document.querySelector('meta[name="application-name"]');
+    if (!metaApp) {
+      metaApp = document.createElement('meta');
+      metaApp.name = "application-name";
+      document.head.appendChild(metaApp);
+    }
+    metaApp.content = "Leads";
+  }, []);
   
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setAuthError('');
+    setDownloadProgress(0);
     
     if (password !== APP_PASSWORD) {
       setAuthError('Senha incorreta. Acesso negado.');
@@ -75,9 +99,32 @@ export default function App() {
       if (!GAS_URL || GAS_URL === 'COLE_SEU_LINK_DO_GOOGLE_AQUI_SE_QUISER') {
         throw new Error("URL do Google Script não configurada.");
       }
+      
       const response = await fetch(GAS_URL);
       if (!response.ok) throw new Error("Erro na resposta do servidor");
-      const data = await response.json();
+      
+      // Lendo a resposta como Stream para medir o progresso (MB baixados)
+      const reader = response.body.getReader();
+      let receivedLength = 0;
+      const chunks = [];
+      
+      while(true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        receivedLength += value.length;
+        setDownloadProgress(receivedLength);
+      }
+      
+      const chunksAll = new Uint8Array(receivedLength);
+      let position = 0;
+      for(let chunk of chunks) {
+        chunksAll.set(chunk, position);
+        position += chunk.length;
+      }
+      
+      const result = new TextDecoder("utf-8").decode(chunksAll);
+      const data = JSON.parse(result);
       
       if (data.error) {
         setAuthError(data.error);
@@ -93,66 +140,107 @@ export default function App() {
     }
   };
 
-  // 1. Agrupar Leads e gerar Opções de Filtros
-  const { groupedLeads, filterOptions } = useMemo(() => {
-    const map = new Map();
+  // 1. Gerar Opções de Filtros a partir dos Leads BRUTOS
+  const filterOptions = useMemo(() => {
     const opts = { cidade: {}, bairro: {}, origem: {} };
 
     leads.forEach((l) => {
-      const rawName = (l.nome || 'Sem Nome').trim();
-      const key = rawName.toLowerCase();
+      const cid = (l.cidade || '').trim() || 'Não Informado';
+      const bai = (l.bairroReplan || l.bairroRevisado || '').trim() || 'Não Informado';
+      const ori = (l.origem || '').trim() || 'Não Informado';
+
+      opts.cidade[cid] = (opts.cidade[cid] || 0) + 1;
+      opts.bairro[bai] = (opts.bairro[bai] || 0) + 1;
+      opts.origem[ori] = (opts.origem[ori] || 0) + 1;
+    });
+
+    return {
+      cidade: Object.entries(opts.cidade).sort((a, b) => b[1] - a[1]),
+      bairro: Object.entries(opts.bairro).sort((a, b) => b[1] - a[1]),
+      origem: Object.entries(opts.origem).sort((a, b) => b[1] - a[1]),
+    };
+  }, [leads]);
+
+  // 2. Aplicar Filtros na Base BRUTA (usada para os mapas e estatísticas precisas)
+  const filteredRawLeads = useMemo(() => {
+    return leads.filter((l) => {
+      const cid = (l.cidade || '').trim() || 'Não Informado';
+      const bai = (l.bairroReplan || l.bairroRevisado || '').trim() || 'Não Informado';
+      const ori = (l.origem || '').trim() || 'Não Informado';
+
+      if (filters.cidade.length > 0 && !filters.cidade.includes(cid)) return false;
+      if (filters.bairro.length > 0 && !filters.bairro.includes(bai)) return false;
+      if (filters.origem.length > 0 && !filters.origem.includes(ori)) return false;
+
+      const searchStr = searchTerm.toLowerCase();
+      if (searchStr) {
+        const matchesSearch = (
+          (l.nome || '').toLowerCase().includes(searchStr) ||
+          cid.toLowerCase().includes(searchStr) ||
+          bai.toLowerCase().includes(searchStr) ||
+          (l.email || '').toLowerCase().includes(searchStr) ||
+          (l.whatsapp || '').toLowerCase().includes(searchStr) ||
+          ori.toLowerCase().includes(searchStr)
+        );
+        if (!matchesSearch) return false;
+      }
+
+      return true;
+    });
+  }, [leads, searchTerm, filters]);
+
+  // 3. Agrupar os Leads Filtrados com base no tipo escolhido (Nome, E-mail, Fone)
+  const groupedLeads = useMemo(() => {
+    const map = new Map();
+
+    filteredRawLeads.forEach((l) => {
+      const rawNome = (l.nome || 'Sem Nome').trim();
+      const rawEmail = (l.email || 'Sem E-mail').trim();
+      const rawZap = (l.whatsapp || 'Sem WhatsApp').trim();
       
+      let key, displayTitle;
+      
+      if (groupBy === 'nome') { 
+        key = rawNome.toLowerCase(); 
+        displayTitle = rawNome; 
+      } else if (groupBy === 'email') { 
+        key = rawEmail.toLowerCase(); 
+        displayTitle = rawEmail; 
+      } else if (groupBy === 'whatsapp') { 
+        key = rawZap.toLowerCase(); 
+        displayTitle = rawZap; 
+      }
+
       const cid = (l.cidade || '').trim() || 'Não Informado';
       const bai = (l.bairroReplan || l.bairroRevisado || '').trim() || 'Não Informado';
       const ori = (l.origem || '').trim() || 'Não Informado';
 
       if (!map.has(key)) {
-        map.set(key, { ...l, nome: rawName, repeatCount: 1, _cidadeObj: cid, _bairroObj: bai, _origemObj: ori });
+        map.set(key, { 
+          id: l.id || key, 
+          displayTitle,
+          nomes: new Set([rawNome]),
+          emails: new Set([rawEmail]),
+          whatsapps: new Set([rawZap]),
+          cidades: new Set([cid]),
+          bairros: new Set([bai]),
+          origens: new Set([ori]),
+          repeatCount: 1 
+        });
       } else {
         const existing = map.get(key);
         existing.repeatCount += 1;
+        existing.nomes.add(rawNome);
+        existing.emails.add(rawEmail);
+        existing.whatsapps.add(rawZap);
+        existing.cidades.add(cid);
+        existing.bairros.add(bai);
+        existing.origens.add(ori);
       }
     });
 
-    const groupedArray = Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome));
-
-    groupedArray.forEach(l => {
-      opts.cidade[l._cidadeObj] = (opts.cidade[l._cidadeObj] || 0) + 1;
-      opts.bairro[l._bairroObj] = (opts.bairro[l._bairroObj] || 0) + 1;
-      opts.origem[l._origemObj] = (opts.origem[l._origemObj] || 0) + 1;
-    });
-
-    return { 
-      groupedLeads: groupedArray,
-      filterOptions: {
-        cidade: Object.entries(opts.cidade).sort((a, b) => b[1] - a[1]),
-        bairro: Object.entries(opts.bairro).sort((a, b) => b[1] - a[1]),
-        origem: Object.entries(opts.origem).sort((a, b) => b[1] - a[1]),
-      }
-    };
-  }, [leads]);
-
-  // 2. Aplicar Filtros Globais (usados tanto no LeadsView quanto no Dashboard)
-  const filteredLeads = useMemo(() => {
-    return groupedLeads.filter((lead) => {
-      const searchStr = searchTerm.toLowerCase();
-      const matchesSearch = !searchStr || (
-        (lead.nome || '').toLowerCase().includes(searchStr) ||
-        (lead._cidadeObj || '').toLowerCase().includes(searchStr) ||
-        (lead._bairroObj || '').toLowerCase().includes(searchStr) ||
-        (lead.email || '').toLowerCase().includes(searchStr) ||
-        (lead.whatsapp || '').toLowerCase().includes(searchStr) ||
-        (lead._origemObj || '').toLowerCase().includes(searchStr)
-      );
-      if (!matchesSearch) return false;
-
-      if (filters.cidade.length > 0 && !filters.cidade.includes(lead._cidadeObj)) return false;
-      if (filters.bairro.length > 0 && !filters.bairro.includes(lead._bairroObj)) return false;
-      if (filters.origem.length > 0 && !filters.origem.includes(lead._origemObj)) return false;
-
-      return true;
-    });
-  }, [groupedLeads, searchTerm, filters]);
+    return Array.from(map.values()).sort((a, b) => a.displayTitle.localeCompare(b.displayTitle));
+  }, [filteredRawLeads, groupBy]);
 
   const toggleFilter = (type, value) => {
     setFilters(prev => {
@@ -172,7 +260,6 @@ export default function App() {
           <div className="absolute top-0 right-0 w-1/3 h-4 bg-red-700 border-b-4 border-black" />
           <div className="pl-6 text-center">
             
-            {/* ÍCONE NA TELA DE LOGIN AQUI - SEM CAIXA */}
             <div className="inline-flex items-center justify-center w-24 h-24 mb-4">
               <img src={ICON_URL} alt="Ícone TABULUM" className="w-full h-full object-contain" />
             </div>
@@ -190,7 +277,11 @@ export default function App() {
                 </div>
               )}
               <button type="submit" disabled={loading} className="w-full bg-black text-white font-bold py-4 px-6 border-4 border-black hover:bg-yellow-400 hover:text-black transition-colors flex items-center justify-center gap-2 uppercase tracking-wider disabled:opacity-50">
-                {loading ? 'Conectando...' : 'Desbloquear Sistema'}
+                {loading 
+                  ? (downloadProgress > 0 
+                      ? `${(downloadProgress / 1024 / 1024).toFixed(2)} MB baixados...` 
+                      : 'Conectando...') 
+                  : 'Desbloquear Sistema'}
               </button>
             </form>
           </div>
@@ -205,7 +296,6 @@ export default function App() {
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between">
           <div className="flex items-center w-full sm:w-auto pl-4">
             
-            {/* ÍCONE NO CABEÇALHO AQUI - SEM CAIXA */}
             <div className="w-14 h-14 flex items-center justify-center shrink-0 pr-4 border-r-4 border-black">
                <img src={ICON_URL} alt="Ícone TABULUM" className="w-full h-full object-contain" />
             </div>
@@ -239,19 +329,32 @@ export default function App() {
               <input type="text" placeholder="Busca universal..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-10 pr-4 py-3 border-2 border-black focus:outline-none focus:ring-4 focus:ring-yellow-400 font-bold" />
             </div>
             
-            <div className="flex items-center gap-4 w-full md:w-auto justify-between">
-              <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-2 px-4 py-3 border-2 border-black font-bold transition-colors ${showFilters || countActiveFilters > 0 ? 'bg-yellow-400' : 'bg-gray-100 hover:bg-gray-200'}`}>
-                <FilterIcon className="w-5 h-5" />
-                <span>Filtros {countActiveFilters > 0 && `(${countActiveFilters})`}</span>
-              </button>
+            <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto justify-between">
+              
+              <div className="flex w-full md:w-auto gap-4 justify-between">
+                <button onClick={() => setShowFilters(!showFilters)} className={`flex items-center gap-2 px-4 py-3 border-2 border-black font-bold transition-colors ${showFilters || countActiveFilters > 0 ? 'bg-yellow-400' : 'bg-gray-100 hover:bg-gray-200'}`}>
+                  <FilterIcon className="w-5 h-5" />
+                  <span>Filtros {countActiveFilters > 0 && `(${countActiveFilters})`}</span>
+                </button>
+
+                {activeTab === 'main' && (
+                  <div className="flex border-2 border-black">
+                    <button onClick={() => setViewMode('grid')} className={`p-2 ${viewMode === 'grid' ? 'bg-yellow-400' : 'bg-white hover:bg-gray-100'}`}><GridIcon className="w-5 h-5" /></button>
+                    <div className="w-0.5 bg-black"></div>
+                    <button onClick={() => setViewMode('list')} className={`p-2 ${viewMode === 'list' ? 'bg-yellow-400' : 'bg-white hover:bg-gray-100'}`}><ListIcon className="w-5 h-5" /></button>
+                  </div>
+                )}
+              </div>
 
               {activeTab === 'main' && (
-                <div className="flex border-2 border-black">
-                  <button onClick={() => setViewMode('grid')} className={`p-2 ${viewMode === 'grid' ? 'bg-yellow-400' : 'bg-white hover:bg-gray-100'}`}><GridIcon className="w-5 h-5" /></button>
-                  <div className="w-0.5 bg-black"></div>
-                  <button onClick={() => setViewMode('list')} className={`p-2 ${viewMode === 'list' ? 'bg-yellow-400' : 'bg-white hover:bg-gray-100'}`}><ListIcon className="w-5 h-5" /></button>
+                <div className="flex flex-wrap md:flex-nowrap items-center gap-1 md:gap-2 border-2 border-black bg-gray-50 p-1 w-full md:w-auto justify-center">
+                  <span className="text-xs font-bold uppercase px-1 md:px-2">Agrupar:</span>
+                  <button onClick={() => setGroupBy('nome')} className={`px-2 md:px-3 py-1 text-xs font-bold border-2 ${groupBy === 'nome' ? 'bg-yellow-400 border-black' : 'border-transparent hover:bg-gray-200'} transition-colors`}>NOME</button>
+                  <button onClick={() => setGroupBy('email')} className={`px-2 md:px-3 py-1 text-xs font-bold border-2 ${groupBy === 'email' ? 'bg-yellow-400 border-black' : 'border-transparent hover:bg-gray-200'} transition-colors`}>E-MAIL</button>
+                  <button onClick={() => setGroupBy('whatsapp')} className={`px-2 md:px-3 py-1 text-xs font-bold border-2 ${groupBy === 'whatsapp' ? 'bg-yellow-400 border-black' : 'border-transparent hover:bg-gray-200'} transition-colors`}>FONE</button>
                 </div>
               )}
+              
             </div>
           </div>
 
@@ -267,9 +370,9 @@ export default function App() {
         </div>
 
         {activeTab === 'main' ? (
-          <LeadsView filteredLeads={filteredLeads} viewMode={viewMode} />
+          <LeadsView groupedLeads={groupedLeads} viewMode={viewMode} groupBy={groupBy} />
         ) : (
-          <DashboardView filteredLeads={filteredLeads} />
+          <DashboardView filteredRawLeads={filteredRawLeads} groupedLeads={groupedLeads} />
         )}
 
       </main>
@@ -280,58 +383,70 @@ export default function App() {
 // ==========================================
 // ABA 1: VISUALIZAÇÃO PRINCIPAL (Cards/Lista)
 // ==========================================
-function LeadsView({ filteredLeads, viewMode }) {
+function LeadsView({ groupedLeads, viewMode, groupBy }) {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 24;
 
-  const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
-  const currentItems = filteredLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(groupedLeads.length / itemsPerPage);
+  const currentItems = groupedLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  useEffect(() => { setCurrentPage(1); }, [filteredLeads]);
+  useEffect(() => { setCurrentPage(1); }, [groupedLeads]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center border-b-4 border-black pb-2">
         <span className="font-black uppercase text-xl">Leads Filtrados</span>
-        <span className="bg-black text-white px-3 py-1 font-bold text-sm">{filteredLeads.length} Registros</span>
+        <span className="bg-black text-white px-3 py-1 font-bold text-sm">{groupedLeads.length} Grupos</span>
       </div>
 
       {viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {currentItems.map((lead, idx) => <LeadCard key={lead.id || idx} lead={lead} />)}
+          {currentItems.map((lead, idx) => <LeadCard key={lead.id || idx} lead={lead} groupBy={groupBy} />)}
         </div>
       ) : (
         <div className="bg-white border-4 border-black overflow-x-auto shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-gray-100 border-b-4 border-black">
-                <th className="p-3 font-black border-r-2 border-black w-24">Repetições</th>
-                <th className="p-3 font-black border-r-2 border-black">Nome</th>
+                <th className="p-3 font-black border-r-2 border-black w-24">Entradas</th>
+                <th className="p-3 font-black border-r-2 border-black uppercase">{groupBy === 'nome' ? 'Nome' : groupBy === 'email' ? 'E-mail' : 'Telefone'}</th>
                 <th className="p-3 font-black border-r-2 border-black">Localização</th>
-                <th className="p-3 font-black border-r-2 border-black">Contato</th>
+                <th className="p-3 font-black border-r-2 border-black">Contatos Adicionais</th>
                 <th className="p-3 font-black">Origem</th>
               </tr>
             </thead>
             <tbody>
-              {currentItems.map((lead, idx) => (
-                <tr key={lead.id || idx} className="border-b-2 border-gray-200 hover:bg-yellow-50 transition-colors">
-                  <td className="p-3 border-r-2 border-black text-center">
-                    {lead.repeatCount > 1 ? (
-                      <span className="bg-mustard text-black px-2 py-1 font-black border-2 border-black">{lead.repeatCount}x</span>
-                    ) : <span className="text-gray-400 font-bold">-</span>}
-                  </td>
-                  <td className="p-3 font-bold border-r-2 border-black">{lead.nome || '-'}</td>
-                  <td className="p-3 border-r-2 border-black">
-                    <div className="text-sm">{lead._cidadeObj || '-'}</div>
-                    <div className="text-xs text-gray-500">{lead._bairroObj || '-'}</div>
-                  </td>
-                  <td className="p-3 border-r-2 border-black">
-                    <div className="text-sm">{lead.whatsapp || '-'}</div>
-                    <div className="text-xs text-gray-500">{lead.email || '-'}</div>
-                  </td>
-                  <td className="p-3 text-sm">{lead._origemObj || '-'}</td>
-                </tr>
-              ))}
+              {currentItems.map((lead, idx) => {
+                const nomes = Array.from(lead.nomes).join(' • ');
+                const cidades = Array.from(lead.cidades).join(' • ');
+                const bairros = Array.from(lead.bairros).join(' • ');
+                const whatsapps = Array.from(lead.whatsapps).join(' • ');
+                const emails = Array.from(lead.emails).join(' • ');
+                const origens = Array.from(lead.origens).join(' • ');
+
+                return (
+                  <tr key={lead.id || idx} className="border-b-2 border-gray-200 hover:bg-yellow-50 transition-colors">
+                    <td className="p-3 border-r-2 border-black text-center">
+                      {lead.repeatCount > 1 ? (
+                        <span className="bg-mustard text-black px-2 py-1 font-black border-2 border-black">{lead.repeatCount}x</span>
+                      ) : <span className="text-gray-400 font-bold">-</span>}
+                    </td>
+                    <td className="p-3 border-r-2 border-black max-w-[200px]">
+                      <div className="font-bold truncate">{lead.displayTitle}</div>
+                      {groupBy !== 'nome' && <div className="text-xs text-gray-500 truncate mt-0.5">{nomes}</div>}
+                    </td>
+                    <td className="p-3 border-r-2 border-black max-w-[200px]">
+                      <div className="text-sm truncate">{cidades}</div>
+                      <div className="text-xs text-gray-500 truncate">{bairros}</div>
+                    </td>
+                    <td className="p-3 border-r-2 border-black max-w-[200px]">
+                      {groupBy !== 'whatsapp' && <div className="text-sm truncate">{whatsapps}</div>}
+                      {groupBy !== 'email' && <div className="text-xs text-gray-500 truncate">{emails}</div>}
+                    </td>
+                    <td className="p-3 text-sm max-w-[150px] truncate">{origens}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -375,8 +490,17 @@ function FilterColumn({ title, type, options, activeFilters, toggleFn }) {
   );
 }
 
-function LeadCard({ lead }) {
+function LeadCard({ lead, groupBy }) {
   const isRepetido = lead.repeatCount > 1;
+  
+  // Transformando os Sets em strings unidas para exibição
+  const nomes = Array.from(lead.nomes).join(' • ');
+  const cidades = Array.from(lead.cidades).join(' • ');
+  const bairros = Array.from(lead.bairros).join(' • ');
+  const zaps = Array.from(lead.whatsapps).join(' • ');
+  const emails = Array.from(lead.emails).join(' • ');
+  const origens = Array.from(lead.origens).join(' • ');
+
   return (
     <div className="bg-white border-4 border-black p-4 relative flex flex-col h-full shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-transform hover:-translate-y-1">
       <div className={`absolute top-0 right-0 w-8 h-8 border-b-4 border-l-4 border-black ${isRepetido ? 'bg-mustard' : 'bg-teal-700'}`}></div>
@@ -386,28 +510,33 @@ function LeadCard({ lead }) {
             {lead.repeatCount} Entradas
           </div>
         )}
-        <h3 className="font-black text-lg leading-tight line-clamp-2">{lead.nome || 'Sem Nome'}</h3>
+        <h3 className="font-black text-lg leading-tight line-clamp-2 truncate" title={lead.displayTitle}>{lead.displayTitle}</h3>
+        {groupBy !== 'nome' && <div className="text-[11px] font-bold text-gray-600 mt-1 line-clamp-2 leading-tight">{nomes}</div>}
       </div>
       <div className="flex-grow space-y-3 mt-2 text-sm font-medium">
         <div className="bg-gray-50 p-2 border-2 border-black">
-          <div className="text-xs text-gray-500 font-bold uppercase mb-0.5">Localização</div>
-          <div>{lead._cidadeObj}</div>
-          <div className="text-gray-600">{lead._bairroObj}</div>
+          <div className="text-[10px] text-gray-500 font-bold uppercase mb-0.5">Localização</div>
+          <div className="line-clamp-1 truncate" title={cidades}>{cidades}</div>
+          <div className="text-gray-600 line-clamp-1 text-xs truncate" title={bairros}>{bairros}</div>
         </div>
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 truncate">
-            <div className="w-2 h-2 bg-mustard rounded-full shrink-0"></div>
-            <span className="truncate">{lead.whatsapp || 'Sem WhatsApp'}</span>
-          </div>
-          <div className="flex items-center gap-2 truncate">
-            <div className="w-2 h-2 bg-black rounded-full shrink-0"></div>
-            <span className="truncate">{lead.email || 'Sem E-mail'}</span>
-          </div>
+        <div className="space-y-1 text-xs">
+          {groupBy !== 'whatsapp' && (
+            <div className="flex items-center gap-2 truncate" title={zaps}>
+              <div className="w-2 h-2 bg-mustard rounded-full shrink-0"></div>
+              <span className="truncate">{zaps}</span>
+            </div>
+          )}
+          {groupBy !== 'email' && (
+            <div className="flex items-center gap-2 truncate" title={emails}>
+              <div className="w-2 h-2 bg-black rounded-full shrink-0"></div>
+              <span className="truncate">{emails}</span>
+            </div>
+          )}
         </div>
       </div>
       <div className="mt-4 pt-3 border-t-4 border-black">
         <div className="text-[10px] text-gray-500 font-bold uppercase mb-1">Origem</div>
-        <div className="text-xs font-bold line-clamp-1">{lead._origemObj}</div>
+        <div className="text-xs font-bold line-clamp-1 truncate" title={origens}>{origens}</div>
       </div>
     </div>
   );
@@ -416,22 +545,27 @@ function LeadCard({ lead }) {
 // ==========================================
 // ABA 2: DASHBOARD
 // ==========================================
-function DashboardView({ filteredLeads }) {
+function DashboardView({ filteredRawLeads, groupedLeads }) {
   const [activeVisualMap, setActiveVisualMap] = useState('SC'); // 'SC' ou 'FLN'
 
   const stats = useMemo(() => {
-    let total = 0;
+    // Calculado sobre RAW LEADS para que as cidades e bairros não sejam mascaradas
+    // pelos agrupamentos do LeadsView (o que causava a inconsistência de contagem)
+    const total = filteredRawLeads.length;
+    const unique = groupedLeads.length; 
+    const repetidos = total - unique;
+
     const cidadesCount = {};
     const bairrosFlnCount = {};
     const origemCount = {};
     let naoInformadoCidade = 0;
     let naoInformadoBairroFln = 0;
 
-    filteredLeads.forEach(l => {
-      total += l.repeatCount;
-      const cid = l._cidadeObj;
+    filteredRawLeads.forEach(l => {
+      const cid = (l.cidade || '').trim() || 'Não Informado';
       const isFln = cid.toLowerCase().includes('florian') || cid.toLowerCase().includes('floripa');
-      const bairro = l._bairroObj;
+      const bairro = (l.bairroReplan || l.bairroRevisado || '').trim() || 'Não Informado';
+      const ori = (l.origem || '').trim() || 'Não Informado';
       
       if (cid === 'Não Informado') naoInformadoCidade++;
       else if (!isFln) cidadesCount[cid] = (cidadesCount[cid] || 0) + 1;
@@ -440,11 +574,8 @@ function DashboardView({ filteredLeads }) {
         if (bairro === 'Não Informado') naoInformadoBairroFln++;
         else bairrosFlnCount[bairro] = (bairrosFlnCount[bairro] || 0) + 1;
       }
-      origemCount[l._origemObj] = (origemCount[l._origemObj] || 0) + 1;
+      origemCount[ori] = (origemCount[ori] || 0) + 1;
     });
-
-    const unique = filteredLeads.length;
-    const repetidos = total - unique;
     
     const topCidades = Object.entries(cidadesCount).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
     const topBairrosFln = Object.entries(bairrosFlnCount).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
@@ -454,24 +585,23 @@ function DashboardView({ filteredLeads }) {
       total, unique, repetidos, 
       topCidades: topCidades.slice(0, 6), 
       heatCidades: topCidades.slice(0, 20),
-      mapCidades: topCidades, // Resolve o bug do LiteralMap (Undefined)
+      mapCidades: topCidades, 
       topBairrosFln: topBairrosFln.slice(0, 6), 
       heatBairros: topBairrosFln.slice(0, 20),
-      mapBairros: topBairrosFln, // Resolve o bug do LiteralMap (Undefined)
+      mapBairros: topBairrosFln, 
       topOrigens, naoInformadoCidade, naoInformadoBairroFln
     };
-  }, [filteredLeads]);
+  }, [filteredRawLeads, groupedLeads]);
 
   const maxCidadeValue = stats.topCidades.length > 0 ? stats.topCidades[0].value : 1;
   const maxBairroValue = stats.topBairrosFln.length > 0 ? stats.topBairrosFln[0].value : 1;
-  const totalTopOrigens = stats.topOrigens.reduce((acc, curr) => acc + curr.value, 0) || 1;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard title="Entradas Atuais (No Filtro)" value={stats.total} color="bg-black" textColor="text-white" />
-        <StatCard title="Leads Únicos (No Filtro)" value={stats.unique} color="bg-teal-700" textColor="text-white" />
+        <StatCard title="Grupos Únicos (Agrupamento)" value={stats.unique} color="bg-teal-700" textColor="text-white" />
         <StatCard title="Repetições" value={stats.repetidos} color="bg-mustard" textColor="text-black" />
       </div>
 
